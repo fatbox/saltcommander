@@ -12,10 +12,10 @@ import logging
 import time
 
 # how often we want minions to reapply state
-RUN_INTERVAL = 3600
+RUN_INTERVAL = 43200
 
 # rediscover_interval is how often we look for new minions
-REDISCOVER_INTERVAL = 600
+REDISCOVER_INTERVAL = 3600
 
 class SaltCommander(object):
     # this will hold a list of known minions
@@ -49,20 +49,31 @@ class SaltCommander(object):
 
     def run(self):
         try:
+            last_minion = None
             minion_idx = 0
             while True:
                 # update our minion list every rediscover_interval
                 if (time.time() - self.last_discovery) > REDISCOVER_INTERVAL:
                     self.discover_minions()
-                    minion_idx = 0
+                    if last_minion:
+                        try:
+                            minion_idx = self.minions.index(last_minion)
+                        except ValueError:
+                            minion_idx = 0
 
                 # apply the next host
-                logging.info("Applying state for %s" % self.minions[minion_idx])
-                self.client.cmd(self.minions[minion_idx], 'state.highstate')
+                last_minion = self.minions[minion_idx]
+                logging.info("Applying state for %s" % last_minion)
+                self.client.cmd(last_minion, 'state.highstate')
 
                 # sleep for our interval
                 logging.debug("Sleeping for %d seconds" % self.minion_interval)
                 time.sleep(self.minion_interval)
+
+                # increase the minion_idx
+                minion_idx += 1
+                if minion_idx > len(self.minions):
+                    minion_idx = 0
 
         except KeyboardInterrupt:
             pass
