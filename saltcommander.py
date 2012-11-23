@@ -30,22 +30,41 @@ class SaltCommander(object):
     # this will hold the calculated minion interval
     minion_interval = 0
 
-    def __init__(self, debug=False):
-        if debug:
-            logging.basicConfig(level=logging.DEBUG)
+    def __init__(self):
         logging.info("Salt commander - Starting up")
         self.client = salt.client.LocalClient()
 
     def discover_minions(self):
-        logging.debug("Discovering minions")
+        logging.info("Discovering minions")
         ret = self.client.cmd('*', 'test.ping')
-        self.minions = ret.keys()
-        logging.debug("Found %d minions:" % len(self.minions))
+        new_minions = ret.keys()
+
+        minions_added = []
+        minions_removed = []
+
+        # pass 1: add any new minions to our list
+        for minion in new_minions:
+            if minion not in self.minions:
+                minions_added.append(minion)
+                self.minions.append(minion)
+
+        # pass 2: remove any minions that no longer exist
+        for minion in self.minions:
+            if minion not in new_minions:
+                minions_removed.append(minion)
+                self.minions.remove(minion)
+
+        # show some output
+        if minions_added:
+            logging.info("Added %d new minions: %s" % (len(minions_added), ", ".join(minions_added)))
+        if minions_removed:
+            logging.info("Removed %d old minions: %s" % (len(minions_removed), ", ".join(minions_removed)))
+
         self.last_discovery = time.time()
 
         # calculate our minion interval
         self.minion_interval = RUN_INTERVAL / len(self.minions)
-        logging.debug("Minion interval is %d" % self.minion_interval)
+        logging.info("Minion interval is now %d seconds" % self.minion_interval)
 
     def run(self):
         try:
@@ -64,20 +83,20 @@ class SaltCommander(object):
                 # apply the next host
                 last_minion = self.minions[minion_idx]
                 logging.info("Applying state for %s" % last_minion)
-                self.client.cmd(last_minion, 'state.highstate')
+                #self.client.cmd(last_minion, 'state.highstate')
 
                 # sleep for our interval
-                logging.debug("Sleeping for %d seconds" % self.minion_interval)
                 time.sleep(self.minion_interval)
 
                 # increase the minion_idx
                 minion_idx += 1
-                if minion_idx > len(self.minions):
+                if minion_idx == len(self.minions):
                     minion_idx = 0
 
         except KeyboardInterrupt:
             pass
 
 if __name__ == '__main__':
-    commander = SaltCommander(debug=True)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+    commander = SaltCommander()
     commander.run()
