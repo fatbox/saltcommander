@@ -83,7 +83,7 @@ class SaltCommander(object):
                 # apply the next host
                 last_minion = self.minions[minion_idx]
                 logging.info("Applying state for %s" % last_minion)
-                #self.client.cmd(last_minion, 'state.highstate')
+                self.client.cmd(last_minion, 'state.highstate')
 
                 # sleep for our interval
                 time.sleep(self.minion_interval)
